@@ -1,0 +1,137 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+		"vnetName": {
+            "defaultValue": "myVnet",
+            "type": "string"
+		},
+		"subnetName": {
+            "defaultValue": "serverSubnet",
+            "type": "string"
+		},
+        "slbName": {
+            "defaultValue": "mySLB",
+            "type": "string"
+        },
+        "backendConfigName": {
+            "defaultValue": "myBackendConfig",
+            "type": "string"
+        },
+        "ipPrefix": {
+            "defaultValue": "not used",
+            "type": "string"
+        },
+        "vipSuffix": {
+            "defaultValue": "not used",
+            "type": "string"
+        },
+        "pipName": {
+            "defaultValue": "myPublicIp",
+            "type": "string"
+        },
+        "frontendPort": {
+            "defaultValue": 1022,
+            "type": "int",
+            "metadata": { "description": "Port that will configured in the TCP-based probe" }
+        },
+        "backendPort": {
+            "defaultValue": 22,
+            "type": "int",
+            "metadata": { "description": "Backend TCP port" }
+        },
+        "probePort": {
+            "defaultValue": 22,
+            "type": "int",
+            "metadata": { "description": "TCP port that will configured in the TCP-based probe" }
+        },
+        "ruleName": {
+            "defaultValue": "ssh",
+            "type": "string"
+        },
+        "dsr": {
+            "defaultValue": "false",
+            "type": "string",
+            "metadata": { "description": "whether Direct Server Return, aka Floating IP, is enabled or not" }
+        }
+    },
+    "variables": {
+		"frontendConfigName": "myFrontendConfig"
+    },
+    "resources": [
+        {
+            "comments": "Public IP address",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "name": "[parameters('pipName')]",
+            "sku": {
+                "name": "Standard",
+                "tier": "Regional"
+            },
+            "apiVersion": "2018-02-01",
+            "location": "[resourceGroup().location]",
+            "properties": {
+                "publicIPAllocationMethod": "Static",
+                "idleTimeoutInMinutes": 4
+            },
+            "resources": [],
+            "dependsOn": []
+        },
+        {
+            "comments": "External Load Balancer",
+            "type": "Microsoft.Network/loadBalancers",
+            "name": "[parameters('slbName')]",
+            "apiVersion": "2018-08-01",
+            "location": "[resourceGroup().location]",
+            "sku": {
+                "name": "Standard"
+            },
+            "properties": {
+                "frontendIPConfigurations": [
+                    {
+                        "name": "[variables('frontendConfigName')]",
+                        "properties": {
+                            "privateIPAllocationMethod": "Dynamic",
+                            "publicIpAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', parameters('pipName'))]"
+                            }
+                        }
+                    }
+                ],
+                "backendAddressPools": [
+                    {
+                        "name": "[parameters('backendConfigName')]"
+                    }
+                ],
+                "loadBalancingRules": [
+                ],
+                "probes": [
+                ],
+                "inboundNatRules": [],
+                "outboundRules": [
+                    {
+                        "name": "myrule",
+                        "properties": {
+                            "allocatedOutboundPorts": 10000,
+                            "protocol": "All",
+                            "enableTcpReset": false,
+                            "idleTimeoutInMinutes": 15,
+                            "backendAddressPool": {
+                                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('slbName')), '/backendAddressPools/', parameters('backendConfigName'))]"
+                            },
+                            "frontendIPConfigurations": [
+                                {
+                                    "id": "[concat(resourceId('Microsoft.Network/loadBalancers', parameters('slbName')), '/frontendIPConfigurations/', variables('frontendConfigName'))]"
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "inboundNatPools": []
+            },
+            "resources": [],
+            "dependsOn": [
+                "[parameters('pipName')]"
+            ]
+        }
+    ]
+}
